@@ -13,10 +13,14 @@
 
 html, body { margin: 0; padding: 0; }
 
+html { -webkit-text-size-adjust: 100%; }
+
 body {
   min-height: 100vh;
   color: var(--ink);
   font-family: 'KaiTi', 'STKaiti', 'Kaiti SC', 'Segoe Script', 'Bradley Hand', cursive;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
   background:
     radial-gradient(ellipse at 50% -10%, rgba(255, 250, 240, 0.85), rgba(241, 235, 224, 0) 62%),
     radial-gradient(rgba(120, 95, 60, 0.045) 1px, transparent 1.4px) 0 0 / 24px 24px,
@@ -31,8 +35,8 @@ body {
 /* ---------- 设置入口 ---------- */
 .gear {
   position: fixed;
-  top: 16px;
-  right: 18px;
+  top: calc(16px + env(safe-area-inset-top));
+  right: calc(18px + env(safe-area-inset-right));
   z-index: 20;
   width: 36px;
   height: 36px;
@@ -70,7 +74,7 @@ body {
   will-change: transform;
   perspective: 1200px;
 }
-.instax.dragging { z-index: 99; }
+.instax.dragging { z-index: 99 !important; }
 .instax:not(.dragging):hover { transform: translateY(-5px) rotate(var(--r, 0deg)); }
 
 .polaroid {
@@ -81,6 +85,10 @@ body {
   transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
   cursor: grab;
   touch-action: none;
+}
+@media (hover: none), (pointer: coarse) {
+  .polaroid { touch-action: pan-y; }
+  .instax { touch-action: manipulation; }
 }
 .instax.flipped .polaroid { transform: rotateY(180deg); }
 .instax.dragging .polaroid { cursor: grabbing; }
@@ -97,6 +105,8 @@ body {
 .face.front {
   background: linear-gradient(155deg, #ffffff 0%, #f7f4ee 70%, #f1ede4 100%);
   padding: 7.4% 7.4% 37%;
+  display: flex;
+  flex-direction: column;
   border-radius: 10px;
   box-shadow:
     0 1px 1px rgba(0, 0, 0, 0.05),
@@ -146,17 +156,6 @@ body {
 }
 .img-wrap.err { font-size: 12px; color: #b0706a; padding: 6px; text-align: center; display: flex; align-items: center; justify-content: center; }
 
-.strip-hint {
-  position: absolute;
-  left: 50%;
-  bottom: 12%;
-  transform: translateX(-50%);
-  font-size: 9.5px;
-  color: #bfb09a;
-  white-space: nowrap;
-  letter-spacing: 0.5px;
-  z-index: 3;
-}
 .cap-date {
   position: absolute;
   right: 8%;
@@ -317,18 +316,6 @@ body {
   gap: 6px;
   margin-top: 8px;
 }
-.browse {
-  border: 1px solid rgba(80, 62, 40, 0.18);
-  background: rgba(255, 255, 255, 0.8);
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  color: var(--muted);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
-}
 .edit-btn, .zoom-btn2 {
   border: 1px solid rgba(80, 62, 40, 0.18);
   background: #fff;
@@ -342,12 +329,17 @@ body {
   white-space: nowrap;
 }
 
-.instax.drop-in { animation: dropIn 0.65s cubic-bezier(0.25, 1.25, 0.4, 1) both; }
+.instax.drop-in { animation: dropIn 0.6s cubic-bezier(0.25, 1.2, 0.4, 1) both; }
 @keyframes dropIn {
   from {
-    transform: translateY(-160px) scale(0.55) rotate(-16deg);
+    transform: translateY(-100px) scale(0.78) rotate(-10deg);
     opacity: 0;
   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .instax.drop-in,
+  .instax,
+  .polaroid { animation: none !important; transition: none !important; }
 }
 
 .wall.loading::after {
@@ -365,7 +357,7 @@ body {
 .sign {
   position: fixed;
   left: 50%;
-  bottom: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 5;
   font-family: 'Segoe Script', 'Bradley Hand', 'KaiTi', 'STKaiti', cursive;
@@ -412,6 +404,7 @@ body {
   transition: transform 0.12s ease, background 0.2s ease, box-shadow 0.2s ease;
   user-select: none;
   text-align: center;
+  touch-action: manipulation;
 }
 .btn:hover { transform: translateY(-1px); }
 .btn:active { transform: translateY(0); }
@@ -431,6 +424,7 @@ body {
   z-index: 100;
   background: rgba(30, 22, 14, 0.72);
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -506,6 +500,7 @@ body {
   z-index: 150;
   background: rgba(30, 22, 14, 0.55);
   backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -581,6 +576,35 @@ body {
 .field-status.bad { color: #b05c52; }
 .modal-actions { text-align: center; margin-top: 16px; }
 
+.edit-card textarea {
+  width: 100%;
+  min-height: 130px;
+  resize: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 17px;
+  line-height: 1.9;
+  color: var(--ink);
+  background: #fffdf8;
+  outline: none;
+  text-align: center;
+}
+.edit-card textarea:focus { border-color: #8a7a62; }
+.edit-date {
+  width: 100%;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 17px;
+  color: var(--ink);
+  background: #fffdf8;
+  outline: none;
+  text-align: center;
+}
+.edit-date:focus { border-color: #8a7a62; }
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed;
@@ -604,8 +628,21 @@ body {
 /* ---------- 小屏 ---------- */
 @media (max-width: 720px) {
   .wall { padding: 30px 14px 60px; }
-  .gear { top: 12px; right: 14px; }
+  .gear {
+    top: calc(12px + env(safe-area-inset-top));
+    right: calc(14px + env(safe-area-inset-right));
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+  }
   .sign { font-size: 10px; letter-spacing: 1px; }
+  .edit-btn, .zoom-btn2 { padding: 8px 14px; font-size: 13px; }
+  .back-flip { font-size: 13px; padding: 6px 8px; }
+  .zoom-btn { width: 30px; height: 30px; font-size: 13px; }
+  .note-input { font-size: 16px; }
+  .date-input { font-size: 16px; width: 150px; }
+  #token-input { font-size: 16px; }
+  .btn { padding: 11px 18px; }
   .lb-prev { left: -8px; }
   .lb-next { right: -8px; }
   .lb-nav { width: 38px; height: 38px; font-size: 24px; }

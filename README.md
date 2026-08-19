@@ -74,11 +74,13 @@ const CONFIG = {
   repo: '',       // 例如 '你的用户名/our-photos'；留空 = 自动从 GitHub Pages 网址识别
   title: 'You & Me',
   subtitle: '我们的拍立得',
+  layoutStyle: 'scatter', // 'scatter' = 仿 instax UP 密集错落；'grid' = 原来的整齐散落
 };
 ```
 
 - 托管在 GitHub Pages 上时 `repo` 可以留空，网页会自动识别。
 - 换了自定义域名，或想连到另一个仓库，就填上 `repo`。
+- 照片摆放方式想换回原来的整齐散落，把 `layoutStyle` 改成 `'grid'`。
 - 标题、副标题在这里改；底色、拍立得样式在 `style.css` 里改。
 
 ## 六、photos.json 方案（私有仓库 / 非 GitHub 托管）

@@ -12,6 +12,7 @@ const CONFIG = {
   repo: '',       // 例如 '你的用户名/our-photos'；留空 = 自动从 GitHub Pages 网址识别
   title: 'You & Me',
   subtitle: '我们的拍立得',
+  layoutStyle: 'scatter', // 'scatter' = 仿 instax UP 密集错落；'grid' = 原来的整齐散落
 };
 
 (() => {
@@ -29,8 +30,9 @@ const CONFIG = {
   const tokenClear = document.getElementById('token-clear');
   const lightbox = document.getElementById('lightbox');
   const toastEl = document.getElementById('toast');
+  const editModal = document.getElementById('edit-modal');
 
-  const LAYOUT_KEY = 'instax-layout-v1';
+  const LAYOUT_KEY = 'instax-layout-v2';
   const NOTES_KEY = 'instax-notes-v1';
   const TOKEN_KEY = 'instax-token-v1';
   const INFO_CACHE_KEY = 'instax-repo-info';
@@ -55,6 +57,8 @@ const CONFIG = {
   let toastTimer = null;
   let suppressClick = false;
   let loading = false;
+  let editingPhoto = null;
+  let editingFig = null;
 
   const rand = (a, b) => Math.random() * (b - a) + a;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -145,13 +149,29 @@ const CONFIG = {
     const base = String(name || '').replace(/\.[^.]*$/, '');
     let date = '';
     let caption = base;
-    const m = base.match(/^(\d{4})[.\-](\d{1,2})[.\-](\d{1,2})[ _\-]*(.*)$/);
+    const m = base.match(/^((?:19|20)\d{2})[.\-](\d{1,2})[.\-](\d{1,2})[ _\-]*(.*)$/);
     if (m) {
-      date = m[1] + '.' + m[2].padStart(2, '0') + '.' + m[3].padStart(2, '0');
+      const y = Number(m[1]);
+      const mo = Number(m[2]);
+      const d = Number(m[3]);
+      if (y >= 1900 && y <= 2099 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
+        date = m[1] + '.' + m[2].padStart(2, '0') + '.' + m[3].padStart(2, '0');
+      }
       caption = m[4];
+    } else {
+      // 从文件名任意位置提取 YYYYMMDD（微信/相机自动命名常见）
+      const m2 = base.match(/(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])/);
+      if (m2) date = m2[0].slice(0, 4) + '.' + m2[0].slice(4, 6) + '.' + m2[0].slice(6, 8);
     }
-    caption = (caption || '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
-    return { date, note: caption || '我们的回忆' };
+    // 清理自动命名产生的噪声
+    caption = (caption || '')
+      .replace(/(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[_-]?\d{0,6}/g, '')
+      .replace(/^(微信图片|wechat|mmexport|img_)[_\s-]*/i, '')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!caption || /^[\d\s]+$/.test(caption)) caption = '我们的回忆';
+    return { date, note: caption };
   }
 
   /* ---------- 本地留言 ---------- */
@@ -264,7 +284,7 @@ const CONFIG = {
       const items = await res.json();
       if (!Array.isArray(items)) throw new Error('api-list');
       list = items
-        .filter((i) => i.type === 'file' && /\.(jpe?g|png|webp|gif|svg)$/i.test(i.name))
+        .filter((i) => i.type === 'file' && i.name.length > 4 && /\.(jpe?g|png|webp|gif|svg)$/i.test(i.name))
         .map((i) => {
           const { date, note } = parseName(i.name);
           return { id: i.sha, file: i.name, url: i.download_url, date, note };
@@ -356,11 +376,6 @@ const CONFIG = {
     wrap.appendChild(img);
     front.appendChild(wrap);
 
-    const hint = document.createElement('span');
-    hint.className = 'strip-hint';
-    hint.textContent = '✎ 翻面写留言';
-    front.appendChild(hint);
-
     const dateEl = document.createElement('span');
     dateEl.className = 'cap-date hand';
     dateEl.textContent = p.date || '';
@@ -441,31 +456,25 @@ const CONFIG = {
 
     const backActions = document.createElement('div');
     backActions.className = 'back-actions';
-    const prevBtn = document.createElement('button');
-    prevBtn.className = 'browse';
-    prevBtn.title = '上一张';
-    prevBtn.textContent = '‹';
     const editBtn = document.createElement('button');
     editBtn.className = 'edit-btn';
     editBtn.textContent = '✏️ 写留言';
     const zoomBtn2 = document.createElement('button');
     zoomBtn2.className = 'zoom-btn2';
     zoomBtn2.textContent = '🔍 大图';
-    const nextBtn = document.createElement('button');
-    nextBtn.className = 'browse';
-    nextBtn.title = '下一张';
-    nextBtn.textContent = '›';
-    backActions.appendChild(prevBtn);
     backActions.appendChild(editBtn);
     backActions.appendChild(zoomBtn2);
-    backActions.appendChild(nextBtn);
     back.appendChild(backActions);
 
-    prevBtn.addEventListener('click', (e) => { e.stopPropagation(); stepBack(-1); });
-    nextBtn.addEventListener('click', (e) => { e.stopPropagation(); stepBack(1); });
     editBtn.addEventListener('click', (e) => { e.stopPropagation(); openEdit(fig); });
     zoomBtn2.addEventListener('click', (e) => { e.stopPropagation(); openLightbox(p.id); });
-    saveBtn.addEventListener('click', (e) => { e.stopPropagation(); saveNote(p, fig); });
+    saveBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const note = fig.querySelector('.note-input').value.trim() || '我们的回忆';
+      const date = fig.querySelector('.date-input').value.trim();
+      persistNote(p, fig, note, date);
+      cancelEdit(fig);
+    });
     cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); cancelEdit(fig); });
 
     polaroid.appendChild(back);
@@ -498,6 +507,17 @@ const CONFIG = {
     applyLayout();
     updateWallHeight();
     syncFlipState();
+  }
+
+  function animateAllCards() {
+    const cards = Array.from(wall.querySelectorAll('.instax'));
+    if (!cards.length) return;
+    cards.forEach((c, i) => {
+      c.classList.remove('drop-in');
+      void c.offsetWidth;
+      c.style.animationDelay = Math.min(i * 45, 1100) + 'ms';
+      c.classList.add('drop-in');
+    });
   }
 
   function renderError(msg) {
@@ -536,25 +556,72 @@ const CONFIG = {
     if (!missing.length) return;
 
     const w = wall.clientWidth || document.body.clientWidth || 900;
-    const cols = Math.max(2, Math.min(8, Math.floor(w / 250)));
-    const rows = Math.max(1, Math.ceil(photos.length / cols));
-    const cellW = w / cols;
-    const cellH = 450;
-    const cells = [];
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) cells.push({ x: c * cellW, y: r * cellH });
-    }
-    const order = shuffled(cells).slice(0, missing.length);
+    const narrow = w < 640;
 
-    missing.forEach((p, i) => {
-      const cell = order[i];
+    if (CONFIG.layoutStyle === 'grid') {
+      const cols = Math.max(2, Math.min(8, Math.floor(w / 250)));
+      const rows = Math.max(1, Math.ceil(photos.length / cols));
+      const cellW = w / cols;
+      const cellH = narrow ? 400 : 450;
+      const cells = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) cells.push({ x: c * cellW, y: r * cellH });
+      }
+      const order = shuffled(cells).slice(0, missing.length);
+      missing.forEach((p, i) => {
+        const cell = order[i];
+        const minW = narrow ? 148 : 170;
+        const maxW = narrow ? 196 : 226;
+        const jx = narrow ? 16 : 28;
+        const jy = narrow ? 18 : 36;
+        layout[p.id] = {
+          x: Math.round(cell.x + rand(-jx, jx)),
+          y: Math.round(cell.y + rand(-jy, jy)),
+          r: Math.round(rand(-6, 6) * 10) / 10,
+          w: Math.round(rand(minW, maxW)),
+          z: 1,
+        };
+      });
+      saveStorage(LAYOUT_KEY, layout);
+      return;
+    }
+
+    // scatter：仿 instax UP 的密集错落、互相叠放
+    const minW = narrow ? 148 : 176;
+    const maxW = narrow ? 178 : 208;
+    const ratio = 86 / 54;
+    const placed = [];
+    let maxY = 0;
+    for (const p of shuffled(missing)) {
+      const pw = Math.round(rand(minW, maxW));
+      const ph = pw * ratio;
+      let pick = null;
+      for (let t = 0; t < 26; t++) {
+        const x = rand(0, Math.max(1, w - pw));
+        const y = rand(0, Math.max(320, maxY + 80));
+        const rect = { x, y, w: pw, h: ph };
+        let worst = 0;
+        for (const q of placed) {
+          const ox = Math.min(rect.x + rect.w, q.x + q.w) - Math.max(rect.x, q.x);
+          const oy = Math.min(rect.y + rect.h, q.y + q.h) - Math.max(rect.y, q.y);
+          if (ox > 0 && oy > 0) {
+            const overlap = (ox * oy) / (rect.w * rect.h);
+            if (overlap > worst) worst = overlap;
+          }
+        }
+        pick = { x, y, worst };
+        if (worst < 0.3) break;
+      }
       layout[p.id] = {
-        x: Math.round(cell.x + rand(-28, 28)),
-        y: Math.round(cell.y + rand(-30, 36)),
-        r: Math.round(rand(-6, 6) * 10) / 10,
-        w: Math.round(rand(170, 226)),
+        x: Math.round(pick.x),
+        y: Math.round(pick.y),
+        r: Math.round(rand(-10, 10) * 10) / 10,
+        w: pw,
+        z: 1 + Math.floor(Math.random() * 4),
       };
-    });
+      placed.push({ x: pick.x, y: pick.y, w: pw, h: ph });
+      maxY = Math.max(maxY, pick.y + ph);
+    }
     saveStorage(LAYOUT_KEY, layout);
   }
 
@@ -565,6 +632,7 @@ const CONFIG = {
       el.style.width = pos.w + 'px';
       el.style.left = pos.x + 'px';
       el.style.top = pos.y + 'px';
+      el.style.zIndex = String(pos.z || 1);
       el.style.setProperty('--r', pos.r + 'deg');
     }
   }
@@ -614,19 +682,24 @@ const CONFIG = {
     }
   }
 
-  function stepBack(delta) {
-    if (!photos.length) return;
-    let idx = flippedId ? photos.findIndex((p) => p.id === flippedId) : currentIndex;
-    if (idx === -1) idx = 0;
-    idx = (idx + delta + photos.length) % photos.length;
-    flipTo(photos[idx].id);
-  }
-
   /* ---------- 编辑留言 ---------- */
+
+  function isCoarsePointer() {
+    return window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  }
 
   function openEdit(fig) {
     const p = photos.find((x) => x.id === fig.dataset.id);
     if (!p) return;
+    if (isCoarsePointer()) {
+      editingPhoto = p;
+      editingFig = fig;
+      document.getElementById('edit-note').value = p.note;
+      document.getElementById('edit-date').value = p.date || '';
+      editModal.classList.remove('hidden');
+      setTimeout(() => document.getElementById('edit-note').focus(), 60);
+      return;
+    }
     fig.querySelector('.note-input').value = p.note;
     fig.querySelector('.date-input').value = p.date || '';
     fig.querySelector('.note-view').classList.add('hidden');
@@ -639,18 +712,21 @@ const CONFIG = {
     fig.querySelector('.note-view').classList.remove('hidden');
   }
 
-  async function saveNote(p, fig) {
-    const note = fig.querySelector('.note-input').value.trim() || '我们的回忆';
-    const date = fig.querySelector('.date-input').value.trim();
+  function closeEditModal() {
+    editModal.classList.add('hidden');
+    editingPhoto = null;
+    editingFig = null;
+  }
+
+  async function persistNote(p, fig, note, date) {
     p.note = note;
     p.date = date;
 
-    fig.querySelector('.back-note').textContent = note;
-    fig.querySelector('.back-date').textContent = date;
-    fig.querySelector('.cap-date').textContent = date;
-    fig.querySelector('.note-input').value = note;
-    fig.querySelector('.date-input').value = date;
-    cancelEdit(fig);
+    if (fig) {
+      fig.querySelector('.back-note').textContent = note;
+      fig.querySelector('.back-date').textContent = date;
+      fig.querySelector('.cap-date').textContent = date;
+    }
 
     const token = loadStorage(TOKEN_KEY, '');
     if (token && repoInfo) {
@@ -835,6 +911,19 @@ const CONFIG = {
       if (e.target === settingsModal) closeSettings();
     });
 
+    document.getElementById('edit-close').addEventListener('click', closeEditModal);
+    document.getElementById('edit-cancel').addEventListener('click', closeEditModal);
+    document.getElementById('edit-save').addEventListener('click', async () => {
+      if (!editingPhoto) return;
+      const note = document.getElementById('edit-note').value.trim() || '我们的回忆';
+      const date = document.getElementById('edit-date').value.trim();
+      await persistNote(editingPhoto, editingFig, note, date);
+      closeEditModal();
+    });
+    editModal.addEventListener('click', (e) => {
+      if (e.target === editModal) closeEditModal();
+    });
+
     shuffleBtn.addEventListener('click', reshuffle);
     refreshBtn.addEventListener('click', () => loadPhotos(true));
 
@@ -862,7 +951,8 @@ const CONFIG = {
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        if (!lightbox.classList.contains('hidden')) closeLightbox();
+        if (!editModal.classList.contains('hidden')) closeEditModal();
+        else if (!lightbox.classList.contains('hidden')) closeLightbox();
         else if (!settingsModal.classList.contains('hidden')) closeSettings();
         return;
       }
@@ -896,6 +986,7 @@ const CONFIG = {
     try {
       photos = await fetchListing(force);
       renderWall(null);
+      animateAllCards();
       setUploadLinks();
     } catch (err) {
       console.error(err);

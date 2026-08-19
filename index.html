@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f1ebe0">
   <title>你和我 · 我们的拍立得</title>
   <meta name="description" content="我们俩的拍立得照片墙">
   <link rel="icon" href="favicon.svg">
-  <link rel="stylesheet" href="style.css?v=20260820c">
+  <link rel="stylesheet" href="style.css?v=20260820e">
 </head>
 <body>
   <button class="gear" id="gear-btn" title="设置">⚙</button>
@@ -72,7 +73,23 @@
     </div>
   </div>
 
+  <!-- 手机端留言编辑 -->
+  <div class="modal hidden" id="edit-modal">
+    <div class="modal-card edit-card">
+      <div class="card-head">
+        <h2>写留言</h2>
+        <button class="card-x" id="edit-close" title="关闭">✕</button>
+      </div>
+      <textarea id="edit-note" class="hand edit-note" maxlength="120" placeholder="写点什么吧…"></textarea>
+      <input id="edit-date" class="hand edit-date" placeholder="2026.08.20" maxlength="20">
+      <div class="modal-actions">
+        <button class="btn ghost" id="edit-cancel">取消</button>
+        <button class="btn primary" id="edit-save">保存</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
-  <script src="app.js?v=20260820c"></script>
+  <script src="app.js?v=20260820e"></script>
 </body>
 </html>
