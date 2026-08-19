@@ -667,12 +667,11 @@ const CONFIG = {
     const w = window.innerWidth;
     const h = window.innerHeight;
     const sw = stageSize * view.s;
-    const minTx = Math.min(0, w - sw);
-    const maxTx = Math.max(0, w - sw);
-    const minTy = Math.min(0, h - sw);
-    const maxTy = Math.max(0, h - sw);
-    view.tx = clamp(view.tx, minTx, maxTx);
-    view.ty = clamp(view.ty, minTy, maxTy);
+    const sh = stageSize * view.s;
+    if (sw <= w) view.tx = (w - sw) / 2;
+    else view.tx = clamp(view.tx, w - sw, 0);
+    if (sh <= h) view.ty = (h - sh) / 2;
+    else view.ty = clamp(view.ty, h - sh, 0);
   }
 
   function enterZoomMode() {
@@ -682,9 +681,13 @@ const CONFIG = {
     stage.style.height = stageSize + 'px';
     const fx = stage.dataset.cx ? parseFloat(stage.dataset.cx) : stageSize / 2;
     const fy = stage.dataset.cy ? parseFloat(stage.dataset.cy) : stageSize / 2;
-    view.s = 1;
-    view.tx = window.innerWidth / 2 - fx * view.s;
-    view.ty = window.innerHeight * 0.45 - fy * view.s;
+    // 初始缩放：屏幕上能看到约 80% 的照片（想看全部再缩小）
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const R = stage.dataset.ring ? parseFloat(stage.dataset.ring) : circleR;
+    view.s = Math.min(1, (Math.min(vw, vh) * 0.8) / Math.max(240, R * 2));
+    view.tx = vw / 2 - fx * view.s;
+    view.ty = vh * 0.45 - fy * view.s;
     clampView();
     applyTransform();
   }
