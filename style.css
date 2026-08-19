@@ -94,7 +94,16 @@ body {
   perspective: 1200px;
 }
 .instax.dragging { z-index: 99 !important; }
-.instax:not(.dragging):hover { transform: translateY(-5px) rotate(var(--r, 0deg)); }
+@media (hover: hover) {
+  .instax:not(.dragging):hover { transform: translateY(-5px) rotate(var(--r, 0deg)); }
+  .instax:hover .face.front {
+    box-shadow:
+      0 1px 1px rgba(0, 0, 0, 0.05),
+      0 5px 12px rgba(55, 40, 22, 0.16),
+      0 22px 44px rgba(55, 40, 22, 0.26),
+      inset 0 0 0 1px rgba(0, 0, 0, 0.035);
+  }
+}
 
 .polaroid {
   position: relative;
@@ -142,13 +151,6 @@ body {
   background: linear-gradient(115deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 30%);
   pointer-events: none;
   z-index: 3;
-}
-.instax:hover .face.front {
-  box-shadow:
-    0 1px 1px rgba(0, 0, 0, 0.05),
-    0 5px 12px rgba(55, 40, 22, 0.16),
-    0 22px 44px rgba(55, 40, 22, 0.26),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.035);
 }
 .instax.dragging .face.front,
 .instax.dragging .face.back {
@@ -655,7 +657,7 @@ body {
     font-size: 20px;
   }
   .sign { font-size: 10px; letter-spacing: 1px; }
-  .edit-btn, .zoom-btn2 { padding: 8px 14px; font-size: 13px; }
+  .edit-btn, .zoom-btn2 { padding: 4px 9px; font-size: 11px; }
   .back-flip { font-size: 13px; padding: 6px 8px; }
   .zoom-btn { width: 30px; height: 30px; font-size: 13px; }
   .note-input { font-size: 16px; }

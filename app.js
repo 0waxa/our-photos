@@ -473,15 +473,10 @@ const CONFIG = {
     const editBtn = document.createElement('button');
     editBtn.className = 'edit-btn';
     editBtn.textContent = '✏️ 写留言';
-    const zoomBtn2 = document.createElement('button');
-    zoomBtn2.className = 'zoom-btn2';
-    zoomBtn2.textContent = '🔍 大图';
     backActions.appendChild(editBtn);
-    backActions.appendChild(zoomBtn2);
     back.appendChild(backActions);
 
     editBtn.addEventListener('click', (e) => { e.stopPropagation(); openEdit(fig); });
-    zoomBtn2.addEventListener('click', (e) => { e.stopPropagation(); openLightbox(p.id); });
     saveBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const note = fig.querySelector('.note-input').value.trim() || '我们的回忆';
@@ -736,7 +731,10 @@ const CONFIG = {
     syncFlipState();
     if (id) {
       const fig = figById(id);
-      if (fig && !isTouch) fig.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      // 缩放视图模式下绝不滚动页面/移动视图（手机端翻面保持原位）
+      if (fig && !isTouch && !wall.classList.contains('zoom-mode')) {
+        fig.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
     }
   }
 
