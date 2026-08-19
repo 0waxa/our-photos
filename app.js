@@ -59,6 +59,13 @@ const CONFIG = {
   let loading = false;
   let editingPhoto = null;
   let editingFig = null;
+  let isTouch = false;
+  let stage = null;
+  let stageSize = 0;
+  let circleR = 0;
+  const MIN_ZOOM = 0.15;
+  const MAX_ZOOM = 3.5;
+  let view = { s: 1, tx: 0, ty: 0 };
 
   const rand = (a, b) => Math.random() * (b - a) + a;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -487,6 +494,8 @@ const CONFIG = {
     if (!photos.length) {
       wall.style.height = '';
       countEl.textContent = '0';
+      wall.classList.remove('zoom-mode');
+      stage = null;
       wall.innerHTML =
         '<div class="empty">' +
         '<div class="empty-card"><span>📷</span></div>' +
@@ -497,15 +506,17 @@ const CONFIG = {
     }
 
     countEl.textContent = String(photos.length);
-    const frag = document.createDocumentFragment();
+    stage = document.createElement('div');
+    stage.className = 'stage';
+    wall.appendChild(stage);
     for (const p of photos) {
       const fig = createCard(p, animateIds && animateIds.includes(p.id));
-      frag.appendChild(fig);
+      stage.appendChild(fig);
     }
-    wall.appendChild(frag);
     ensureLayout();
     applyLayout();
-    updateWallHeight();
+    if (isTouch) enterZoomMode();
+    else updateWallHeight();
     syncFlipState();
   }
 
@@ -552,76 +563,62 @@ const CONFIG = {
   /* ---------- 散落摆放 ---------- */
 
   function ensureLayout() {
-    const missing = photos.filter((p) => !layout[p.id]);
-    if (!missing.length) return;
-
-    const w = wall.clientWidth || document.body.clientWidth || 900;
-    const narrow = w < 640;
-
-    if (CONFIG.layoutStyle === 'grid') {
-      const cols = Math.max(2, Math.min(8, Math.floor(w / 250)));
-      const rows = Math.max(1, Math.ceil(photos.length / cols));
-      const cellW = w / cols;
-      const cellH = narrow ? 400 : 450;
-      const cells = [];
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) cells.push({ x: c * cellW, y: r * cellH });
+    // 手机端：照片沿一个圆环摆放（Apple Watch 风格，配合捏合缩放）
+    if (isTouch) {
+      const n = photos.length;
+      if (!n) return;
+      const pw = Math.round(rand(140, 168));
+      const spacing = pw + 18;
+      circleR = Math.max(300, (n * spacing) / (2 * Math.PI));
+      stageSize = Math.ceil((circleR + 240) * 2);
+      if (stage) {
+        stage.dataset.size = String(stageSize);
+        stage.dataset.ring = String(Math.round(circleR));
       }
-      const order = shuffled(cells).slice(0, missing.length);
-      missing.forEach((p, i) => {
-        const cell = order[i];
-        const minW = narrow ? 148 : 170;
-        const maxW = narrow ? 196 : 226;
-        const jx = narrow ? 16 : 28;
-        const jy = narrow ? 18 : 36;
+      const cx = stageSize / 2;
+      const cy = stageSize / 2;
+      photos.forEach((p, i) => {
+        const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
         layout[p.id] = {
-          x: Math.round(cell.x + rand(-jx, jx)),
-          y: Math.round(cell.y + rand(-jy, jy)),
-          r: Math.round(rand(-6, 6) * 10) / 10,
-          w: Math.round(rand(minW, maxW)),
-          z: 1,
+          x: Math.round(cx + circleR * Math.cos(angle) - pw / 2),
+          y: Math.round(cy + circleR * Math.sin(angle) - (pw * (86 / 54)) / 2),
+          r: Math.round(rand(-4, 4) * 10) / 10,
+          w: pw,
+          z: 2 + Math.floor(Math.random() * 3),
         };
       });
       saveStorage(LAYOUT_KEY, layout);
       return;
     }
 
-    // scatter：仿 instax UP 的密集错落、互相叠放
-    const minW = narrow ? 148 : 176;
-    const maxW = narrow ? 178 : 208;
-    const ratio = 86 / 54;
-    const placed = [];
-    let maxY = 0;
-    for (const p of shuffled(missing)) {
-      const pw = Math.round(rand(minW, maxW));
-      const ph = pw * ratio;
-      let pick = null;
-      for (let t = 0; t < 26; t++) {
-        const x = rand(0, Math.max(1, w - pw));
-        const y = rand(0, Math.max(320, maxY + 80));
-        const rect = { x, y, w: pw, h: ph };
-        let worst = 0;
-        for (const q of placed) {
-          const ox = Math.min(rect.x + rect.w, q.x + q.w) - Math.max(rect.x, q.x);
-          const oy = Math.min(rect.y + rect.h, q.y + q.h) - Math.max(rect.y, q.y);
-          if (ox > 0 && oy > 0) {
-            const overlap = (ox * oy) / (rect.w * rect.h);
-            if (overlap > worst) worst = overlap;
-          }
-        }
-        pick = { x, y, worst };
-        if (worst < 0.3) break;
-      }
-      layout[p.id] = {
-        x: Math.round(pick.x),
-        y: Math.round(pick.y),
-        r: Math.round(rand(-10, 10) * 10) / 10,
-        w: pw,
-        z: 1 + Math.floor(Math.random() * 4),
-      };
-      placed.push({ x: pick.x, y: pick.y, w: pw, h: ph });
-      maxY = Math.max(maxY, pick.y + ph);
+    const missing = photos.filter((p) => !layout[p.id]);
+    if (!missing.length) return;
+
+    const w = wall.clientWidth || document.body.clientWidth || 900;
+    const narrow = w < 640;
+    const cols = Math.max(narrow ? 2 : 3, Math.min(8, Math.floor(w / 230)));
+    const rows = Math.max(1, Math.ceil(missing.length / cols));
+    const cellW = w / cols;
+    const cellH = narrow ? 400 : 430;
+    const cells = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) cells.push({ x: c * cellW, y: r * cellH, last: r === rows - 1 });
     }
+    const order = shuffled(cells).slice(0, missing.length);
+    const minW = narrow ? 148 : 172;
+    const maxW = narrow ? 178 : 204;
+    const jx = CONFIG.layoutStyle === 'grid' ? 16 : 38;
+    missing.forEach((p, i) => {
+      const cell = order[i];
+      const jy = cell.last ? rand(-150, -20) : rand(-26, 34);
+      layout[p.id] = {
+        x: Math.max(4, Math.round(cell.x + rand(-jx, jx))),
+        y: Math.round(cell.y + jy),
+        r: Math.round(rand(-7, 7) * 10) / 10,
+        w: Math.round(rand(minW, maxW)),
+        z: 1 + Math.floor(Math.random() * 2),
+      };
+    });
     saveStorage(LAYOUT_KEY, layout);
   }
 
@@ -638,6 +635,10 @@ const CONFIG = {
   }
 
   function updateWallHeight() {
+    if (isTouch) {
+      wall.style.height = '100vh';
+      return;
+    }
     let maxBottom = 0;
     for (const p of photos) {
       const pos = layout[p.id];
@@ -646,12 +647,72 @@ const CONFIG = {
     wall.style.height = Math.round(maxBottom + 90) + 'px';
   }
 
+  /* ---------- 手机端：环形视图 + 捏合缩放 ---------- */
+
+  function applyTransform() {
+    if (!stage) return;
+    stage.style.transform = 'translate(' + view.tx + 'px,' + view.ty + 'px) scale(' + view.s + ')';
+  }
+
+  function clampView() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const sw = stageSize * view.s;
+    const minTx = Math.min(0, w - sw);
+    const maxTx = Math.max(0, w - sw);
+    const minTy = Math.min(0, h - sw);
+    const maxTy = Math.max(0, h - sw);
+    view.tx = clamp(view.tx, minTx, maxTx);
+    view.ty = clamp(view.ty, minTy, maxTy);
+  }
+
+  function enterZoomMode() {
+    wall.classList.add('zoom-mode');
+    if (!stage || !stageSize) return;
+    stage.style.width = stageSize + 'px';
+    stage.style.height = stageSize + 'px';
+    const first = photos[0];
+    const pos = first && layout[first.id];
+    const fx = pos ? pos.x + pos.w / 2 : stageSize / 2;
+    const fy = pos ? pos.y + (pos.w * 86) / 54 / 2 : stageSize / 2;
+    view.s = 1;
+    view.tx = window.innerWidth / 2 - fx * view.s;
+    view.ty = window.innerHeight * 0.45 - fy * view.s;
+    clampView();
+    applyTransform();
+  }
+
+  function zoomBy(factor) {
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight / 2;
+    const prevS = view.s;
+    const ns = clamp(prevS * factor, MIN_ZOOM, MAX_ZOOM);
+    view.tx = cx - ((cx - view.tx) / prevS) * ns;
+    view.ty = cy - ((cy - view.ty) / prevS) * ns;
+    view.s = ns;
+    clampView();
+    applyTransform();
+  }
+
+  function focusCard(id) {
+    if (!isTouch || !stage) return;
+    const pos = layout[id];
+    if (!pos) return;
+    const fx = pos.x + pos.w / 2;
+    const fy = pos.y + (pos.w * 86) / 54 / 2;
+    view.tx = window.innerWidth / 2 - fx * view.s;
+    view.ty = window.innerHeight / 2 - fy * view.s;
+    clampView();
+    applyTransform();
+  }
+
   function reshuffle() {
     if (!photos.length) return;
     layout = {};
     ensureLayout();
     applyLayout();
-    updateWallHeight();
+    if (isTouch) enterZoomMode();
+    else updateWallHeight();
     saveStorage(LAYOUT_KEY, layout);
     toast('重新摆好啦');
   }
@@ -678,7 +739,8 @@ const CONFIG = {
     syncFlipState();
     if (id) {
       const fig = figById(id);
-      if (fig) fig.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (fig && !isTouch) fig.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (isTouch) focusCard(id);
     }
   }
 
@@ -747,6 +809,23 @@ const CONFIG = {
   /* ---------- 拖拽摆放 ---------- */
 
   function initDrag() {
+    wall.addEventListener('click', (e) => {
+      if (suppressClick) {
+        suppressClick = false;
+        return;
+      }
+      const fig = e.target.closest('.instax');
+      if (!fig) return;
+      if (e.target.closest('button, textarea, input, a')) return;
+      if (fig.classList.contains('flipped')) flipTo(null);
+      else flipTo(fig.dataset.id);
+    });
+
+    if (isTouch) {
+      initZoomPan();
+      return;
+    }
+
     wall.addEventListener('pointerdown', (e) => {
       const polaroid = e.target.closest('.polaroid');
       if (!polaroid) return;
@@ -808,17 +887,85 @@ const CONFIG = {
       polaroid.addEventListener('pointercancel', onUp);
     });
 
-    wall.addEventListener('click', (e) => {
-      if (suppressClick) {
-        suppressClick = false;
+  }
+
+  function initZoomPan() {
+    const pointers = new Map();
+    let panStart = null;
+    let pinch = null;
+    let capturedPointer = null;
+
+    wall.addEventListener('pointerdown', (e) => {
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 1) {
+        panStart = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty, moved: false };
+      } else if (pointers.size === 2) {
+        panStart = null;
+        const pts = [...pointers.values()];
+        pinch = {
+          dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+          s: view.s,
+        };
+      }
+    });
+
+    wall.addEventListener('pointermove', (e) => {
+      const cur = pointers.get(e.pointerId);
+      if (!cur) return;
+      cur.x = e.clientX;
+      cur.y = e.clientY;
+
+      if (pinch && pointers.size === 2) {
+        const pts = [...pointers.values()];
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        const mx = (pts[0].x + pts[1].x) / 2;
+        const my = (pts[0].y + pts[1].y) / 2;
+        const prevS = view.s;
+        const worldX = (mx - view.tx) / prevS;
+        const worldY = (my - view.ty) / prevS;
+        const ns = clamp(pinch.s * (dist / Math.max(1, pinch.dist)), MIN_ZOOM, MAX_ZOOM);
+        view.s = ns;
+        view.tx = mx - worldX * ns;
+        view.ty = my - worldY * ns;
+        clampView();
+        applyTransform();
         return;
       }
-      const fig = e.target.closest('.instax');
-      if (!fig) return;
-      if (e.target.closest('button, textarea, input, a')) return;
-      if (fig.classList.contains('flipped')) flipTo(null);
-      else flipTo(fig.dataset.id);
+
+      if (panStart && pointers.size === 1) {
+        const dx = e.clientX - panStart.x;
+        const dy = e.clientY - panStart.y;
+        if (Math.abs(dx) + Math.abs(dy) > 8) {
+          panStart.moved = true;
+          if (capturedPointer === null) {
+            capturedPointer = e.pointerId;
+            try { wall.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+          }
+        }
+        view.tx = panStart.tx + dx;
+        view.ty = panStart.ty + dy;
+        clampView();
+        applyTransform();
+      }
     });
+
+    const endPointer = (e) => {
+      if (capturedPointer === e.pointerId) {
+        capturedPointer = null;
+        try { wall.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+      }
+      pointers.delete(e.pointerId);
+      if (pinch && pointers.size < 2) pinch = null;
+      if (pointers.size === 1) {
+        const p = [...pointers.values()][0];
+        panStart = { x: p.x, y: p.y, tx: view.tx, ty: view.ty, moved: !!(panStart && panStart.moved) };
+      } else if (pointers.size === 0) {
+        suppressClick = !!(panStart && panStart.moved);
+        panStart = null;
+      }
+    };
+    wall.addEventListener('pointerup', endPointer);
+    wall.addEventListener('pointercancel', endPointer);
   }
 
   /* ---------- 灯箱 ---------- */
@@ -924,6 +1071,9 @@ const CONFIG = {
       if (e.target === editModal) closeEditModal();
     });
 
+    document.getElementById('zoom-in').addEventListener('click', () => zoomBy(1.25));
+    document.getElementById('zoom-out').addEventListener('click', () => zoomBy(0.8));
+
     shuffleBtn.addEventListener('click', reshuffle);
     refreshBtn.addEventListener('click', () => loadPhotos(true));
 
@@ -998,6 +1148,7 @@ const CONFIG = {
   }
 
   async function init() {
+    isTouch = isCoarsePointer();
     wireEvents();
     initDrag();
 

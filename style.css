@@ -65,6 +65,23 @@ body {
   -webkit-user-select: none;
 }
 
+.stage { position: relative; }
+.wall.zoom-mode {
+  height: 100vh;
+  min-height: 100vh;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.wall.zoom-mode .stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
 .instax {
   position: absolute;
   top: 0;
@@ -604,6 +621,34 @@ body {
   text-align: center;
 }
 .edit-date:focus { border-color: #8a7a62; }
+
+/* ---------- 手机端缩放按钮 ---------- */
+.zoom-ctl {
+  position: fixed;
+  right: calc(14px + env(safe-area-inset-right));
+  bottom: calc(70px + env(safe-area-inset-bottom));
+  z-index: 15;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+}
+.zoom-ctl button {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(80, 62, 40, 0.22);
+  background: rgba(255, 253, 248, 0.92);
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(55, 40, 22, 0.18);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: none), (pointer: coarse) {
+  .zoom-ctl { display: flex; }
+}
 
 /* ---------- Toast ---------- */
 .toast {
