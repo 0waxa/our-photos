@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="1240" viewBox="0 0 920 1240">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#38543c"/>
+      <stop offset="0.5" stop-color="#5f7d4c"/>
+      <stop offset="1" stop-color="#2c3b2a"/>
+    </linearGradient>
+    <linearGradient id="ray" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6f0c8" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#f6f0c8" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.45" r="0.78">
+      <stop offset="0.6" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0f1a0e" stop-opacity="0.48"/>
+    </radialGradient>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.07"/></feComponentTransfer>
+    </filter>
+  </defs>
+  <rect width="920" height="1240" fill="url(#sky)"/>
+  <rect width="920" height="1240" fill="url(#ray)" transform="rotate(-18 460 620)"/>
+  <rect x="180" y="0" width="46" height="1240" fill="#1f2f1e" opacity="0.5"/>
+  <rect x="420" y="0" width="30" height="1240" fill="#1f2f1e" opacity="0.42"/>
+  <rect x="690" y="0" width="54" height="1240" fill="#1f2f1e" opacity="0.5"/>
+  <ellipse cx="520" cy="1180" rx="330" ry="80" fill="#7c9a55" opacity="0.3"/>
+  <rect width="920" height="1240" fill="url(#vig)"/>
+  <rect width="920" height="1240" filter="url(#grain)"/>
+</svg>

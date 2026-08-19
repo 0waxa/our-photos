@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>你和我 · 我们的拍立得</title>
+  <meta name="description" content="我们俩的拍立得照片墙">
+  <link rel="icon" href="favicon.svg">
+  <link rel="stylesheet" href="style.css?v=20260820c">
+</head>
+<body>
+  <button class="gear" id="gear-btn" title="设置">⚙</button>
+
+  <main class="wall" id="wall"></main>
+
+  <footer class="sign">My and Waest&rsquo;s photo wall. &ndash; 2023.10.31 &ndash; Forever.</footer>
+
+  <!-- 大图查看 -->
+  <div class="lightbox hidden" id="lightbox">
+    <div class="lb-card">
+      <span class="lb-index" id="lb-index"></span>
+      <button class="lb-nav lb-prev" id="lb-prev" title="上一张">‹</button>
+      <button class="lb-nav lb-next" id="lb-next" title="下一张">›</button>
+      <div class="lb-img-wrap"><img id="lb-img" alt="拍立得照片"></div>
+      <div class="lb-info">
+        <div class="lb-note hand" id="lb-note"></div>
+        <div class="lb-date" id="lb-date"></div>
+      </div>
+      <div class="lb-actions">
+        <button class="btn ghost small" id="lb-close">关闭</button>
+        <button class="btn primary small" id="lb-back">去背面写留言</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置卡片 -->
+  <div class="modal hidden" id="settings">
+    <div class="modal-card">
+      <div class="card-head">
+        <h2>设置</h2>
+        <button class="card-x" id="settings-close" title="关闭">✕</button>
+      </div>
+
+      <div class="card-rows">
+        <a class="btn primary" id="upload-btn" target="_blank" rel="noopener" title="打开 GitHub photos 文件夹">＋ 上传照片</a>
+        <button class="btn ghost" id="refresh-btn">⟳ 刷新照片</button>
+        <button class="btn ghost" id="shuffle-btn">🔄 重新摆放</button>
+      </div>
+      <p class="count-line">共 <span id="count">0</span> 张照片</p>
+
+      <h3>留言同步</h3>
+      <p class="tip">
+        留言默认保存在这台浏览器的本地。想让另一半打开网页也能看到你写的字，就配置一个 GitHub Token（可选）：
+        打开
+        <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">创建 Token 页面</a>，
+        Repository access 选 Only select repositories 并勾选相册仓库，Permissions → Contents 选 Read and write。
+      </p>
+      <input type="password" id="token-input" placeholder="github_pat_..." autocomplete="off">
+      <div class="field-status" id="token-status">未连接</div>
+      <div class="card-rows">
+        <button class="btn ghost small" id="token-clear">清除</button>
+        <button class="btn primary small" id="token-save">保存并验证</button>
+      </div>
+
+      <h3>使用说明</h3>
+      <ol class="help-list">
+        <li>点「上传照片」打开 GitHub 的 photos 文件夹，点 Add file → Upload files 拖入照片 → Commit。</li>
+        <li>文件名：<code>2026-08-20 海边散步.jpg</code> —— 日期在前，留言在后。</li>
+        <li>点墙上的拍立得会翻到背面，用手写体写留言、改日期，日期显示在正面右下角。</li>
+        <li>删照片：在 GitHub 的 photos 文件夹里删除文件。</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="app.js?v=20260820c"></script>
+</body>
+</html>
