@@ -675,9 +675,6 @@ const CONFIG = {
     else view.tx = clamp(view.tx, w - sw, 0);
     if (sh <= h) view.ty = clamp(view.ty, (h - sh) / 2 - 60, (h - sh) / 2 + 60);
     else view.ty = clamp(view.ty, h - sh, 0);
-    // 圆心始终保持在屏幕中央 70% 区域，怎么拖都不会把整圆推到一侧卡死
-    if (centerX) view.tx = clamp(view.tx, 0.15 * w - centerX * view.s, 0.85 * w - centerX * view.s);
-    if (centerY) view.ty = clamp(view.ty, 0.15 * h - centerY * view.s, 0.85 * h - centerY * view.s);
   }
 
   function enterZoomMode() {
@@ -1010,6 +1007,19 @@ const CONFIG = {
         cleanupDrag();
         suppressClick = !!(panStart && panStart.moved);
         panStart = null;
+        // 防迷路：若整圆被滑出屏幕，松手后自动回到中心
+        if (isTouch && stage && centerX) {
+          const anyVisible = Array.from(wall.querySelectorAll('.instax')).some((f) => {
+            const b = f.getBoundingClientRect();
+            return b.x + b.width > 0 && b.x < window.innerWidth && b.y + b.height > 0 && b.y < window.innerHeight;
+          });
+          if (!anyVisible) {
+            view.tx = window.innerWidth / 2 - centerX * view.s;
+            view.ty = window.innerHeight / 2 - centerY * view.s;
+            clampView();
+            applyTransform();
+          }
+        }
       }
     };
     wall.addEventListener('pointerup', endPointer);
