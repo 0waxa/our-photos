@@ -81,6 +81,8 @@ body {
   transform-origin: 0 0;
   will-change: transform;
 }
+.wall.zoom-mode,
+.wall.zoom-mode .polaroid { touch-action: none; }
 
 .instax {
   position: absolute;

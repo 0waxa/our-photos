@@ -12,7 +12,7 @@ const CONFIG = {
   repo: '',       // 例如 '你的用户名/our-photos'；留空 = 自动从 GitHub Pages 网址识别
   title: 'You & Me',
   subtitle: '我们的拍立得',
-  layoutStyle: 'scatter', // 'scatter' = 仿 instax UP 密集错落；'grid' = 原来的整齐散落
+  layoutStyle: 'scatter', // 'scatter' = instax UP 盒子视图（中心向外圆形散落）；'grid' = 均匀网格
 };
 
 (() => {
@@ -32,7 +32,7 @@ const CONFIG = {
   const toastEl = document.getElementById('toast');
   const editModal = document.getElementById('edit-modal');
 
-  const LAYOUT_KEY = 'instax-layout-v2';
+  const LAYOUT_KEY = 'instax-layout-v3';
   const NOTES_KEY = 'instax-notes-v1';
   const TOKEN_KEY = 'instax-token-v1';
   const INFO_CACHE_KEY = 'instax-repo-info';
@@ -563,62 +563,62 @@ const CONFIG = {
   /* ---------- 散落摆放 ---------- */
 
   function ensureLayout() {
-    // 手机端：照片沿一个圆环摆放（Apple Watch 风格，配合捏合缩放）
-    if (isTouch) {
-      const n = photos.length;
-      if (!n) return;
-      const pw = Math.round(rand(140, 168));
-      const spacing = pw + 18;
-      circleR = Math.max(300, (n * spacing) / (2 * Math.PI));
-      stageSize = Math.ceil((circleR + 240) * 2);
-      if (stage) {
-        stage.dataset.size = String(stageSize);
-        stage.dataset.ring = String(Math.round(circleR));
-      }
-      const cx = stageSize / 2;
-      const cy = stageSize / 2;
-      photos.forEach((p, i) => {
-        const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
-        layout[p.id] = {
-          x: Math.round(cx + circleR * Math.cos(angle) - pw / 2),
-          y: Math.round(cy + circleR * Math.sin(angle) - (pw * (86 / 54)) / 2),
-          r: Math.round(rand(-4, 4) * 10) / 10,
-          w: pw,
-          z: 2 + Math.floor(Math.random() * 3),
-        };
-      });
-      saveStorage(LAYOUT_KEY, layout);
-      return;
-    }
-
-    const missing = photos.filter((p) => !layout[p.id]);
-    if (!missing.length) return;
-
+    const n = photos.length;
+    if (!n) return;
     const w = wall.clientWidth || document.body.clientWidth || 900;
-    const narrow = w < 640;
-    const cols = Math.max(narrow ? 2 : 3, Math.min(8, Math.floor(w / 230)));
-    const rows = Math.max(1, Math.ceil(missing.length / cols));
-    const cellW = w / cols;
-    const cellH = narrow ? 400 : 430;
-    const cells = [];
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) cells.push({ x: c * cellW, y: r * cellH, last: r === rows - 1 });
-    }
-    const order = shuffled(cells).slice(0, missing.length);
-    const minW = narrow ? 148 : 172;
-    const maxW = narrow ? 178 : 204;
-    const jx = CONFIG.layoutStyle === 'grid' ? 16 : 38;
-    missing.forEach((p, i) => {
-      const cell = order[i];
-      const jy = cell.last ? rand(-150, -20) : rand(-26, 34);
+
+    // 仿 instax UP 盒子视图：以中心为焦点、向外圆形散落，随机旋转、允许叠放
+    const pw = isTouch ? rand(138, 158) : rand(152, 172);
+    const ph = pw * (86 / 54);
+    const totalArea = n * pw * ph;
+    const areaR = Math.sqrt(totalArea / (Math.PI * 0.42)) + pw;
+    const R = isTouch
+      ? Math.min(areaR, 460)
+      : Math.min(areaR, Math.max(240, w / 2 - 60));
+    const cx = w / 2;
+    const cy = R + 40;
+    const placed = [];
+
+    for (const p of photos) {
+      let pick = null;
+      for (let t = 0; t < 30; t++) {
+        const rr = R * Math.sqrt(Math.random());
+        const angle = Math.random() * Math.PI * 2;
+        const x = cx + rr * Math.cos(angle) - pw / 2;
+        const y = cy + rr * Math.sin(angle) - ph / 2;
+        const rect = { x, y, w: pw, h: ph };
+        let worst = 0;
+        for (const q of placed) {
+          const ox = Math.min(rect.x + rect.w, q.x + q.w) - Math.max(rect.x, q.x);
+          const oy = Math.min(rect.y + rect.h, q.y + q.h) - Math.max(rect.y, q.y);
+          if (ox > 0 && oy > 0) {
+            const overlap = (ox * oy) / Math.min(rect.w * rect.h, q.w * q.h);
+            if (overlap > worst) worst = overlap;
+          }
+        }
+        pick = { x, y, worst };
+        if (worst < (isTouch ? 0.55 : 0.5)) break;
+      }
       layout[p.id] = {
-        x: Math.max(4, Math.round(cell.x + rand(-jx, jx))),
-        y: Math.round(cell.y + jy),
-        r: Math.round(rand(-7, 7) * 10) / 10,
-        w: Math.round(rand(minW, maxW)),
-        z: 1 + Math.floor(Math.random() * 2),
+        x: Math.round(clamp(pick.x, 4, Math.max(4, w - pw - 4))),
+        y: Math.round(Math.max(4, pick.y)),
+        r: Math.round(rand(-12, 12) * 10) / 10,
+        w: Math.round(pw),
+        z: 1 + Math.floor(Math.random() * 4),
       };
-    });
+      placed.push({ x: pick.x, y: pick.y, w: pw, h: ph });
+    }
+
+    if (isTouch) {
+      circleR = Math.round(R);
+      stageSize = Math.ceil((R + 260) * 2);
+    }
+    if (stage) {
+      stage.dataset.size = isTouch ? String(stageSize) : String(Math.round(w));
+      stage.dataset.ring = String(Math.round(R));
+      stage.dataset.cx = String(Math.round(cx));
+      stage.dataset.cy = String(Math.round(cy));
+    }
     saveStorage(LAYOUT_KEY, layout);
   }
 
@@ -671,10 +671,8 @@ const CONFIG = {
     if (!stage || !stageSize) return;
     stage.style.width = stageSize + 'px';
     stage.style.height = stageSize + 'px';
-    const first = photos[0];
-    const pos = first && layout[first.id];
-    const fx = pos ? pos.x + pos.w / 2 : stageSize / 2;
-    const fy = pos ? pos.y + (pos.w * 86) / 54 / 2 : stageSize / 2;
+    const fx = stage.dataset.cx ? parseFloat(stage.dataset.cx) : stageSize / 2;
+    const fy = stage.dataset.cy ? parseFloat(stage.dataset.cy) : stageSize / 2;
     view.s = 1;
     view.tx = window.innerWidth / 2 - fx * view.s;
     view.ty = window.innerHeight * 0.45 - fy * view.s;
@@ -872,8 +870,16 @@ const CONFIG = {
         if (moved) {
           pos.x = clamp(Math.round(pos.x), 4, Math.max(4, wall.clientWidth - 60));
           pos.y = Math.max(4, Math.round(pos.y));
+          // 松手后置顶：拖到哪就显示在哪一层的上面
+          let maxZ = 0;
+          for (const other of photos) {
+            const q = layout[other.id];
+            if (q && q.z > maxZ) maxZ = q.z;
+          }
+          pos.z = maxZ + 1;
           fig.style.left = pos.x + 'px';
           fig.style.top = pos.y + 'px';
+          fig.style.zIndex = String(pos.z);
           saveStorage(LAYOUT_KEY, layout);
           updateWallHeight();
           suppressClick = true;
