@@ -600,7 +600,9 @@ const CONFIG = {
         if (worst < (isTouch ? 0.55 : 0.5)) break;
       }
       layout[p.id] = {
-        x: Math.round(clamp(pick.x, 4, Math.max(4, w - pw - 4))),
+        x: isTouch
+          ? Math.round(pick.x)
+          : Math.round(clamp(pick.x, 4, Math.max(4, w - pw - 4))),
         y: Math.round(Math.max(4, pick.y)),
         r: Math.round(rand(-12, 12) * 10) / 10,
         w: Math.round(pw),
@@ -900,12 +902,18 @@ const CONFIG = {
     let panStart = null;
     let pinch = null;
     let capturedPointer = null;
+    let dragCard = null;
+    let dragStart = null;
 
     wall.addEventListener('pointerdown', (e) => {
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pointers.size === 1) {
+        dragCard = e.target.closest('.instax');
+        dragStart = null;
         panStart = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty, moved: false };
       } else if (pointers.size === 2) {
+        dragCard = null;
+        dragStart = null;
         panStart = null;
         const pts = [...pointers.values()];
         pinch = {
@@ -947,11 +955,25 @@ const CONFIG = {
             capturedPointer = e.pointerId;
             try { wall.setPointerCapture(e.pointerId); } catch { /* ignore */ }
           }
+          if (dragCard && view.s >= 1) {
+            // 放大状态下：拖动照片本身
+            const pos = layout[dragCard.dataset.id];
+            if (pos) {
+              if (!dragStart) dragStart = { x: pos.x, y: pos.y };
+              dragCard.classList.add('dragging');
+              dragCard.style.zIndex = '99';
+              pos.x = clamp(dragStart.x + dx / view.s, -300, stageSize);
+              pos.y = clamp(dragStart.y + dy / view.s, -300, stageSize);
+              dragCard.style.left = pos.x + 'px';
+              dragCard.style.top = pos.y + 'px';
+            }
+          } else {
+            view.tx = panStart.tx + dx;
+            view.ty = panStart.ty + dy;
+            clampView();
+            applyTransform();
+          }
         }
-        view.tx = panStart.tx + dx;
-        view.ty = panStart.ty + dy;
-        clampView();
-        applyTransform();
       }
     });
 
@@ -966,6 +988,22 @@ const CONFIG = {
         const p = [...pointers.values()][0];
         panStart = { x: p.x, y: p.y, tx: view.tx, ty: view.ty, moved: !!(panStart && panStart.moved) };
       } else if (pointers.size === 0) {
+        if (dragCard && panStart && panStart.moved && dragStart) {
+          const pos = layout[dragCard.dataset.id];
+          if (pos) {
+            let maxZ = 0;
+            for (const other of photos) {
+              const q = layout[other.id];
+              if (q && q.z > maxZ) maxZ = q.z;
+            }
+            pos.z = maxZ + 1;
+            dragCard.style.zIndex = String(pos.z);
+            saveStorage(LAYOUT_KEY, layout);
+          }
+        }
+        if (dragCard) dragCard.classList.remove('dragging');
+        dragCard = null;
+        dragStart = null;
         suppressClick = !!(panStart && panStart.moved);
         panStart = null;
       }
