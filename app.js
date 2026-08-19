@@ -59,7 +59,6 @@ const CONFIG = {
   let loading = false;
   let editingPhoto = null;
   let editingFig = null;
-  let hintShown = false;
   let isTouch = false;
   let stage = null;
   let stageSize = 0;
@@ -581,8 +580,14 @@ const CONFIG = {
     const R = isTouch
       ? Math.min(areaR * 1.15, 620)
       : Math.min(areaR, Math.max(240, w / 2 - 60));
-    const cx = w / 2;
-    const cy = R + 40;
+    let cx = w / 2;
+    let cy = R + 40;
+    if (isTouch) {
+      // 手机端：圆放在画布正中心，四周留出等距空白，保证每个方向都能拉到
+      stageSize = Math.ceil((R + 260) * 2);
+      cx = stageSize / 2;
+      cy = stageSize / 2;
+    }
     const placed = [];
 
     for (const p of photos) {
@@ -620,7 +625,6 @@ const CONFIG = {
 
     if (isTouch) {
       circleR = Math.round(R);
-      stageSize = Math.ceil((R + 260) * 2);
     }
     if (stage) {
       stage.dataset.size = isTouch ? String(stageSize) : String(Math.round(w));
@@ -1187,10 +1191,6 @@ const CONFIG = {
       renderWall(null);
       animateAllCards();
       setUploadLinks();
-      if (isTouch && !hintShown) {
-        hintShown = true;
-        setTimeout(() => toast('单指拖动照片 · 双指缩放/平移 · 点按翻面'), 2200);
-      }
     } catch (err) {
       console.error(err);
       renderError(describeError(err));
