@@ -63,6 +63,8 @@ const CONFIG = {
   let stage = null;
   let stageSize = 0;
   let circleR = 0;
+  let centerX = 0;
+  let centerY = 0;
   const MAX_ZOOM = 2.6;
   let view = { s: 1, tx: 0, ty: 0 };
 
@@ -587,6 +589,8 @@ const CONFIG = {
       stageSize = Math.ceil((R + 260) * 2);
       cx = stageSize / 2;
       cy = stageSize / 2;
+      centerX = cx;
+      centerY = cy;
     }
     const placed = [];
 
@@ -676,6 +680,9 @@ const CONFIG = {
     else view.tx = clamp(view.tx, w - sw, 0);
     if (sh <= h) view.ty = clamp(view.ty, (h - sh) / 2 - 60, (h - sh) / 2 + 60);
     else view.ty = clamp(view.ty, h - sh, 0);
+    // 圆心始终保持在屏幕中央 70% 区域，怎么拖都不会把整圆推到一侧卡死
+    if (centerX) view.tx = clamp(view.tx, 0.15 * w - centerX * view.s, 0.85 * w - centerX * view.s);
+    if (centerY) view.ty = clamp(view.ty, 0.15 * h - centerY * view.s, 0.85 * h - centerY * view.s);
   }
 
   function enterZoomMode() {
@@ -692,18 +699,6 @@ const CONFIG = {
     view.s = Math.min(1, (Math.min(vw, vh) * 1.04) / Math.max(240, R * 2));
     view.tx = vw / 2 - fx * view.s;
     view.ty = vh * 0.45 - fy * view.s;
-    clampView();
-    applyTransform();
-  }
-
-  function focusCard(id) {
-    if (!isTouch || !stage) return;
-    const pos = layout[id];
-    if (!pos) return;
-    const fx = pos.x + pos.w / 2;
-    const fy = pos.y + (pos.w * 86) / 54 / 2;
-    view.tx = window.innerWidth / 2 - fx * view.s;
-    view.ty = window.innerHeight / 2 - fy * view.s;
     clampView();
     applyTransform();
   }
@@ -742,7 +737,6 @@ const CONFIG = {
     if (id) {
       const fig = figById(id);
       if (fig && !isTouch) fig.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      if (isTouch) focusCard(id);
     }
   }
 
