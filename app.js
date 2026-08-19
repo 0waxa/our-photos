@@ -685,11 +685,11 @@ const CONFIG = {
     stage.style.height = stageSize + 'px';
     const fx = stage.dataset.cx ? parseFloat(stage.dataset.cx) : stageSize / 2;
     const fy = stage.dataset.cy ? parseFloat(stage.dataset.cy) : stageSize / 2;
-    // 初始缩放：屏幕上能看到约 80% 的照片（想看全部再缩小）
+    // 初始缩放：约 1.3 倍于之前的 0.8 系数（照片更大更清晰）
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const R = stage.dataset.ring ? parseFloat(stage.dataset.ring) : circleR;
-    view.s = Math.min(1, (Math.min(vw, vh) * 0.8) / Math.max(240, R * 2));
+    view.s = Math.min(1, (Math.min(vw, vh) * 1.04) / Math.max(240, R * 2));
     view.tx = vw / 2 - fx * view.s;
     view.ty = vh * 0.45 - fy * view.s;
     clampView();
