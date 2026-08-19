@@ -59,13 +59,19 @@ const CONFIG = {
   let loading = false;
   let editingPhoto = null;
   let editingFig = null;
+  let hintShown = false;
   let isTouch = false;
   let stage = null;
   let stageSize = 0;
   let circleR = 0;
-  const MIN_ZOOM = 0.15;
-  const MAX_ZOOM = 3.5;
+  const MAX_ZOOM = 2.6;
   let view = { s: 1, tx: 0, ty: 0 };
+
+  function minZoom() {
+    // 最小缩放 = 刚好能看到整圆（不会再缩成屏幕中间一小团）
+    const fit = Math.min(window.innerWidth, window.innerHeight) * 0.92;
+    return Math.max(0.12, Math.min(1, fit / (stageSize || 1)));
+  }
 
   const rand = (a, b) => Math.random() * (b - a) + a;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -573,7 +579,7 @@ const CONFIG = {
     const totalArea = n * pw * ph;
     const areaR = Math.sqrt(totalArea / (Math.PI * 0.42)) + pw;
     const R = isTouch
-      ? Math.min(areaR, 460)
+      ? Math.min(areaR * 1.15, 620)
       : Math.min(areaR, Math.max(240, w / 2 - 60));
     const cx = w / 2;
     const cy = R + 40;
@@ -582,7 +588,8 @@ const CONFIG = {
     for (const p of photos) {
       let pick = null;
       for (let t = 0; t < 30; t++) {
-        const rr = R * Math.sqrt(Math.random());
+        // 手机端更偏向圆的外侧，中心不堆成团，放大后能看清单张
+        const rr = R * Math.pow(Math.random(), isTouch ? 0.75 : 0.5);
         const angle = Math.random() * Math.PI * 2;
         const x = cx + rr * Math.cos(angle) - pw / 2;
         const y = cy + rr * Math.sin(angle) - ph / 2;
@@ -678,18 +685,6 @@ const CONFIG = {
     view.s = 1;
     view.tx = window.innerWidth / 2 - fx * view.s;
     view.ty = window.innerHeight * 0.45 - fy * view.s;
-    clampView();
-    applyTransform();
-  }
-
-  function zoomBy(factor) {
-    const cx = window.innerWidth / 2;
-    const cy = window.innerHeight / 2;
-    const prevS = view.s;
-    const ns = clamp(prevS * factor, MIN_ZOOM, MAX_ZOOM);
-    view.tx = cx - ((cx - view.tx) / prevS) * ns;
-    view.ty = cy - ((cy - view.ty) / prevS) * ns;
-    view.s = ns;
     clampView();
     applyTransform();
   }
@@ -905,15 +900,21 @@ const CONFIG = {
     let dragCard = null;
     let dragStart = null;
 
+    function cleanupDrag() {
+      if (dragCard) dragCard.classList.remove('dragging');
+      dragCard = null;
+      dragStart = null;
+    }
+
     wall.addEventListener('pointerdown', (e) => {
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pointers.size === 1) {
         dragCard = e.target.closest('.instax');
-        dragStart = null;
+        const pos = dragCard ? layout[dragCard.dataset.id] : null;
+        dragStart = pos ? { x: pos.x, y: pos.y } : null;
         panStart = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty, moved: false };
       } else if (pointers.size === 2) {
-        dragCard = null;
-        dragStart = null;
+        cleanupDrag();
         panStart = null;
         const pts = [...pointers.values()];
         pinch = {
@@ -937,7 +938,7 @@ const CONFIG = {
         const prevS = view.s;
         const worldX = (mx - view.tx) / prevS;
         const worldY = (my - view.ty) / prevS;
-        const ns = clamp(pinch.s * (dist / Math.max(1, pinch.dist)), MIN_ZOOM, MAX_ZOOM);
+        const ns = clamp(pinch.s * Math.pow(dist / Math.max(1, pinch.dist), 0.6), minZoom(), MAX_ZOOM);
         view.s = ns;
         view.tx = mx - worldX * ns;
         view.ty = my - worldY * ns;
@@ -950,16 +951,15 @@ const CONFIG = {
         const dx = e.clientX - panStart.x;
         const dy = e.clientY - panStart.y;
         if (Math.abs(dx) + Math.abs(dy) > 8) {
-          panStart.moved = true;
+          // 单指 = 拖动照片
           if (capturedPointer === null) {
             capturedPointer = e.pointerId;
             try { wall.setPointerCapture(e.pointerId); } catch { /* ignore */ }
           }
-          if (dragCard && view.s >= 1) {
-            // 放大状态下：拖动照片本身
+          if (dragCard && dragStart) {
             const pos = layout[dragCard.dataset.id];
             if (pos) {
-              if (!dragStart) dragStart = { x: pos.x, y: pos.y };
+              panStart.moved = true;
               dragCard.classList.add('dragging');
               dragCard.style.zIndex = '99';
               pos.x = clamp(dragStart.x + dx / view.s, -300, stageSize);
@@ -968,6 +968,8 @@ const CONFIG = {
               dragCard.style.top = pos.y + 'px';
             }
           } else {
+            // 按在空白处：单指平移视图
+            panStart.moved = true;
             view.tx = panStart.tx + dx;
             view.ty = panStart.ty + dy;
             clampView();
@@ -986,9 +988,14 @@ const CONFIG = {
       if (pinch && pointers.size < 2) pinch = null;
       if (pointers.size === 1) {
         const p = [...pointers.values()][0];
-        panStart = { x: p.x, y: p.y, tx: view.tx, ty: view.ty, moved: !!(panStart && panStart.moved) };
+        const hit = document.elementFromPoint(p.x, p.y);
+        const card = hit ? hit.closest('.instax') : null;
+        dragCard = card;
+        const pos = card ? layout[card.dataset.id] : null;
+        dragStart = pos ? { x: pos.x, y: pos.y } : null;
+        panStart = { x: p.x, y: p.y, tx: view.tx, ty: view.ty, moved: false };
       } else if (pointers.size === 0) {
-        if (dragCard && panStart && panStart.moved && dragStart) {
+        if (dragCard && dragStart && panStart && panStart.moved) {
           const pos = layout[dragCard.dataset.id];
           if (pos) {
             let maxZ = 0;
@@ -1001,9 +1008,7 @@ const CONFIG = {
             saveStorage(LAYOUT_KEY, layout);
           }
         }
-        if (dragCard) dragCard.classList.remove('dragging');
-        dragCard = null;
-        dragStart = null;
+        cleanupDrag();
         suppressClick = !!(panStart && panStart.moved);
         panStart = null;
       }
@@ -1115,9 +1120,6 @@ const CONFIG = {
       if (e.target === editModal) closeEditModal();
     });
 
-    document.getElementById('zoom-in').addEventListener('click', () => zoomBy(1.25));
-    document.getElementById('zoom-out').addEventListener('click', () => zoomBy(0.8));
-
     shuffleBtn.addEventListener('click', reshuffle);
     refreshBtn.addEventListener('click', () => loadPhotos(true));
 
@@ -1182,6 +1184,10 @@ const CONFIG = {
       renderWall(null);
       animateAllCards();
       setUploadLinks();
+      if (isTouch && !hintShown) {
+        hintShown = true;
+        setTimeout(() => toast('单指拖动照片 · 双指缩放/平移 · 点按翻面'), 2200);
+      }
     } catch (err) {
       console.error(err);
       renderError(describeError(err));
