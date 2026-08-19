@@ -672,9 +672,9 @@ const CONFIG = {
     const h = window.innerHeight;
     const sw = stageSize * view.s;
     const sh = stageSize * view.s;
-    if (sw <= w) view.tx = (w - sw) / 2;
+    if (sw <= w) view.tx = clamp(view.tx, (w - sw) / 2 - 60, (w - sw) / 2 + 60);
     else view.tx = clamp(view.tx, w - sw, 0);
-    if (sh <= h) view.ty = (h - sh) / 2;
+    if (sh <= h) view.ty = clamp(view.ty, (h - sh) / 2 - 60, (h - sh) / 2 + 60);
     else view.ty = clamp(view.ty, h - sh, 0);
   }
 
